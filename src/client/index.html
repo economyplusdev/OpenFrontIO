@@ -166,6 +166,9 @@
 
     <!-- Main container with responsive padding -->
     <main class="flex justify-center flex-grow">
+      <!-- Game state marker for userscripts -->
+      <div id="lobby" class="hidden"></div>
+
       <div class="container pt-12">
         <o-button
           id="login-discord"
@@ -210,6 +213,7 @@
           ></o-button>
           <o-button
             id="join-private-lobby-button"
+            class="join-button btn-join"
             title="Join Lobby"
             translationKey="main.join_lobby"
             block
@@ -225,6 +229,7 @@
 
         <o-button
           id="single-player"
+          class="play-button btn-play"
           title="Single Player"
           translationKey="main.single_player"
           block
@@ -262,6 +267,10 @@
       <ul></ul>
     </div>
     <div id="app"></div>
+    <!-- Game canvas container for userscript detection -->
+    <div id="game-container">
+      <canvas id="game" style="display: none"></canvas>
+    </div>
     <div id="radialMenu" class="radial-menu"></div>
     <div class="flex gap-2 fixed right-[10px] top-[10px] z-50 flex-col">
       <options-menu></options-menu>

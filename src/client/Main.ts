@@ -57,6 +57,21 @@ declare global {
       };
       spaNewPage: (url: string) => void;
     };
+    // OpenFront Helper API for userscripts
+    game?: {
+      joinGame: () => void;
+      state: string;
+    };
+    socket?: {
+      emit: (event: string, data?: any) => void;
+    };
+    openfront?: {
+      getPlayers: () => Promise<
+        Array<{ id: string; name: string; isBot: boolean }>
+      >;
+      getCurrentGameState: () => string;
+      joinRandomGame: () => Promise<boolean>;
+    };
   }
 }
 
@@ -395,6 +410,9 @@ class Client {
         updateSliderProgress(slider);
         slider.addEventListener("input", () => updateSliderProgress(slider));
       });
+
+    // Initialize userscript API support
+    this.initializeUsescriptAPI();
   }
 
   private handleHash() {
@@ -503,6 +521,154 @@ class Client {
     this.gameStop();
     this.gameStop = null;
     this.publicLobby.leaveLobby();
+  }
+
+  // Userscript support methods
+  private async getPlayers(): Promise<
+    Array<{ id: string; name: string; isBot: boolean }>
+  > {
+    try {
+      // Get players from public lobbies
+      const response = await fetch("/api/public_lobbies");
+      const data = await response.json();
+
+      const players: Array<{ id: string; name: string; isBot: boolean }> = [];
+
+      if (data.lobbies && data.lobbies.length > 0) {
+        const lobby = data.lobbies[0];
+        if (lobby.clients) {
+          lobby.clients.forEach((client: any) => {
+            players.push({
+              id: client.clientID,
+              name: client.username,
+              isBot: this.isPlayerBot(client.username),
+            });
+          });
+        }
+      }
+
+      return players;
+    } catch (error) {
+      console.error("Failed to get players:", error);
+      return [];
+    }
+  }
+
+  private isPlayerBot(username: string): boolean {
+    const name = username.toLowerCase();
+
+    // Common bot naming patterns
+    const botPatterns = [
+      "bot",
+      "ai",
+      "cpu",
+      "npc",
+      "computer",
+      "ai_",
+      "_ai",
+      "_bot",
+      "bot_",
+      "system",
+    ];
+
+    // Check against common bot patterns
+    for (const pattern of botPatterns) {
+      if (name.includes(pattern)) {
+        return true;
+      }
+    }
+
+    // Check for numbered bots (e.g. Bot1, AI2, etc.)
+    if (/bot\d+|ai\d+|cpu\d+|npc\d+/.test(name)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private getCurrentGameState(): string {
+    // Check if we're in a game
+    if (
+      document.querySelector("canvas#game") ||
+      document.querySelector("canvas.game-canvas") ||
+      document.querySelector("#game-container canvas") ||
+      document.querySelector(".game-active")
+    ) {
+      return "playing";
+    }
+
+    // Check if we're in lobby/menu
+    if (
+      document.querySelector("#lobby") ||
+      document.querySelector(".lobby-container") ||
+      document.querySelector("#menu") ||
+      document.querySelector(".main-menu") ||
+      this.publicLobby
+    ) {
+      return "lobby";
+    }
+
+    return "unknown";
+  }
+
+  private async joinRandomGame(): Promise<boolean> {
+    try {
+      // Check if username is valid first
+      if (!this.usernameInput?.isValid()) {
+        console.warn("Username not valid for joining game");
+        return false;
+      }
+
+      // Try to join the first available public lobby
+      const response = await fetch("/api/public_lobbies");
+      const data = await response.json();
+
+      if (data.lobbies && data.lobbies.length > 0) {
+        const lobby = data.lobbies[0];
+
+        // Trigger join lobby event
+        const joinEvent = new CustomEvent("join-lobby", {
+          detail: {
+            clientID: generateCryptoRandomUUID(),
+            gameID: lobby.gameID,
+          } as JoinLobbyEvent,
+        });
+
+        document.dispatchEvent(joinEvent);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Failed to join random game:", error);
+      return false;
+    }
+  }
+
+  private initializeUsescriptAPI(): void {
+    // Expose API for userscripts
+    window.openfront = {
+      getPlayers: () => this.getPlayers(),
+      getCurrentGameState: () => this.getCurrentGameState(),
+      joinRandomGame: () => this.joinRandomGame(),
+    };
+
+    // Legacy game object for older userscripts
+    window.game = {
+      joinGame: () => this.joinRandomGame(),
+      state: this.getCurrentGameState(),
+    };
+
+    // Mock socket for userscripts that expect it
+    window.socket = {
+      emit: (event: string, data?: any) => {
+        if (event === "join") {
+          this.joinRandomGame();
+        }
+      },
+    };
+
+    console.log("OpenFront userscript API initialized");
   }
 }
 

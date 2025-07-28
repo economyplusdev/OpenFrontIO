@@ -174,12 +174,63 @@ export class PublicLobby extends LitElement {
           </div>
         </div>
       </button>
+
+      <!-- Hidden player list for userscript detection -->
+      <div id="leaderboard" style="display: none;">
+        ${lobby.clients?.map(
+          (client) => html`
+            <li
+              class="leaderboard-item player"
+              data-player-id="${client.clientID}"
+              data-player-name="${client.username}"
+              data-player="${client.username}"
+              data-is-bot="${this.isPlayerBot(client.username)
+                ? "true"
+                : "false"}"
+            >
+              <span class="player-name">${client.username}</span>
+            </li>
+          `,
+        )}
+      </div>
     `;
   }
 
   leaveLobby() {
     this.isLobbyHighlighted = false;
     this.currLobby = null;
+  }
+
+  private isPlayerBot(username: string): boolean {
+    const name = username.toLowerCase();
+
+    // Common bot naming patterns
+    const botPatterns = [
+      "bot",
+      "ai",
+      "cpu",
+      "npc",
+      "computer",
+      "ai_",
+      "_ai",
+      "_bot",
+      "bot_",
+      "system",
+    ];
+
+    // Check against common bot patterns
+    for (const pattern of botPatterns) {
+      if (name.includes(pattern)) {
+        return true;
+      }
+    }
+
+    // Check for numbered bots (e.g. Bot1, AI2, etc.)
+    if (/bot\d+|ai\d+|cpu\d+|npc\d+/.test(name)) {
+      return true;
+    }
+
+    return false;
   }
 
   private lobbyClicked(lobby: GameInfo) {
